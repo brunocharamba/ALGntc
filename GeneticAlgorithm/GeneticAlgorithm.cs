@@ -3,13 +3,16 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Windows.Forms.DataVisualization.Charting;
 
 namespace GeneticAlgorithm
 {
     public static class GeneticAlgorithm
     {
-        public static double fitness = double.MaxValue;
-        public static double[] bestIndividue;
+        public static double fitness = double.MaxValue; //best fitness of generation
+        public static double[] bestIndividue;  //best individue of generation
+        public static Random rnd = GenerateRandom(); //get a true random number
 
         #region Run Genetic Algorithm
 
@@ -25,21 +28,52 @@ namespace GeneticAlgorithm
         /// <param name="st">Type of selection</param>
         /// <param name="ff">Type of fitness function</param>
         public static void RunGeneticAlgorithm(int countPopulation, int countChromossomes, int numberIteration, double mutationRate, double minValue, double maxValue,
-            SelectionType st, FitnessFunction ff)
+            SelectionType st, FitnessFunction ff, Generator gen)
         {
+            //get initial randomic population
             double[][] pop = InitializatePopulation(countPopulation, countChromossomes, minValue, maxValue);
             double[][] off;
             double[][] nxt;
 
             for (int i = 0; i < numberIteration; i++)
             {
-                off = GenerateOffspring(pop, mutationRate);
-                nxt = GenerateNewPopulation(pop, off, st, ff);
+                //create children with exact number of the parents (1:1)
+                off = GenerateOffspring(pop, mutationRate, minValue, maxValue);
+                
+                //do the selection mechanism based on the Selection Type choice
+                switch (st)
+                {
+                    case SelectionType.BestOf: nxt = GenerateNewPopulationBestOf(pop, off, ff); break;
+                    case SelectionType.RouletteWheel: nxt = GenerateNewPopulationRouletteWheel(pop, off, ff); break;
+                    default: nxt = GenerateNewPopulationBestOf(pop, off, ff); break;
+                }
 
+                //the next population of the next generation will be the best fitting between parents and children
                 pop = nxt;
 
-                Console.WriteLine(String.Format("{0} : {1}", i, ToString(nxt[0])));
+                //update UI/graph with new fitness
+                if (gen.InvokeRequired)
+                {
+                    gen.BeginInvoke((MethodInvoker)delegate
+                    {
+                        gen.UpdateGraph(i, fitness);
+                        gen.UpdateResultsLabel(i, fitness);
+                    });
+                }
             }
+
+            //end of algorithm
+            if (gen.InvokeRequired)
+            {
+                gen.BeginInvoke((MethodInvoker)delegate
+                {
+                    //enable textboxes and run button
+                    gen.EnableControls(true);
+                    //disable stop button
+                    gen.EnableStopButton(false);
+                });
+            }
+
         }
 
         /// <summary>
@@ -50,16 +84,18 @@ namespace GeneticAlgorithm
         /// <returns>Initial population</returns>
         public static double[][] InitializatePopulation(int countPopulation, int countChromossomes, double minValue, double maxValue)
         {
+            //create a matrix with the count of the population choosen
             double[][] pop = new double[countPopulation][];
 
             for (int i = 0; i < countPopulation; i++)
             {
+                //create an array in every matrix entry with the number of chromossomes choosen
                 pop[i] = new double[countChromossomes];
 
                 for (int j = 0; j < countChromossomes; j++)
                 {
-                    Random r = GenerateRandom();
-                    pop[i][j] = GenerateRandomNumber(r, minValue, maxValue);
+                    //populate chromossomes with a random number between the minimum and maximum values choosen
+                    pop[i][j] = GenerateRandomNumber(rnd, minValue, maxValue);
                 }
             }
 
@@ -74,10 +110,8 @@ namespace GeneticAlgorithm
         /// <param name="parents">Parents matrix</param>
         /// <param name="mutationRate">Possibility of mutation (values between 0.0 and 1.0)</param>
         /// <returns>The children (offspring) of the parents</returns>
-        public static double[][] GenerateOffspring(double[][] parents, double mutationRate)
+        public static double[][] GenerateOffspring(double[][] parents, double mutationRate, double minValue, double maxValue)
         {
-            Random r = GenerateRandom();
-
             //randomize and separate parents (50/50)
             ShuffleArray(GenerateRandom(), parents);
             
@@ -93,17 +127,17 @@ namespace GeneticAlgorithm
                 {
                     //if mutation occours, change randomly the chromossome instead of get from the parents
                     //if not, get from the parents
-                    if (r.NextDouble() <= mutationRate)
+                    if (rnd.NextDouble() <= mutationRate)
                     {
-                        offspring[i][j] = GenerateRandomNumber(r, -5.12, 5.12);
+                        offspring[i][j] = GenerateRandomNumber(rnd, minValue, maxValue);
                     }
                     else if (j < pivot)
                     {
-                        offspring[i][j] = parents[i][j];
+                        offspring[i][j] = parents[i][j]; //getting chromossomes from the first parent
                     }
                     else
                     {
-                        offspring[i][j] = parents[ii][j];
+                        offspring[i][j] = parents[ii][j]; //getting chromossomes from the last parent
                     }
                 }
             }
@@ -117,39 +151,93 @@ namespace GeneticAlgorithm
         /// </summary>
         /// <param name="parents">Parent's matrix</param>
         /// <param name="offspring">Offspring's matrix</param>
-        /// <param name="st">Type of selection</param>
         /// <param name="ff">Type of fitness function</param>
         /// <returns>Mixed population with the best fitting individues between parents and offspring</returns>
-        public static double[][] GenerateNewPopulation(double[][] parents, double[][] offspring, SelectionType st, FitnessFunction ff)
+        public static double[][] GenerateNewPopulationBestOf(double[][] parents, double[][] offspring, FitnessFunction ff)
         {
             List<Tuple<double, double[]>> newPop = new List<Tuple<double, double[]>>();
             double[][] nextGen = new double[parents.GetLength(0)][];
 
-            //if only individues with best fitness progress
-            if (st == SelectionType.BestOf)
+            //organizing new population
+            if (ff == FitnessFunction.Rastrigin)
             {
-                //organizing new population
-                if(ff == FitnessFunction.Rastrigin)
-                {
-                    //adding parents and offspring to one list
-                    for (int i = 0; i < parents.GetLength(0); i++) newPop.Add(new Tuple<double, double[]>(Functions.Rastrigin(parents[i]), parents[i]));
-                    for (int i = 0; i < offspring.GetLength(0); i++) newPop.Add(new Tuple<double, double[]>(Functions.Rastrigin(offspring[i]), offspring[i]));
-                }
-
-                //sorting the list from min to max
-                newPop.Sort((a, b) => a.Item1.CompareTo(b.Item1));
-
-                //removing half of the population to match the count parameter
-                for (int i = 0; i < parents.GetLength(0); i++)
-                {
-                    nextGen[i] = new double[parents[0].GetLength(0)];
-                    nextGen[i] = newPop[i].Item2;
-                }
-
+                //adding parents and offspring to one list
+                for (int i = 0; i < parents.GetLength(0); i++) newPop.Add(new Tuple<double, double[]>(Functions.Rastrigin(parents[i]), parents[i]));
+                for (int i = 0; i < offspring.GetLength(0); i++) newPop.Add(new Tuple<double, double[]>(Functions.Rastrigin(offspring[i]), offspring[i]));
             }
 
-            fitness = newPop[0].Item1;
+            //if only individues with best fitness progress
+            //sorting the list from min to max
+            newPop.Sort((a, b) => a.Item1.CompareTo(b.Item1));
 
+            //removing half of the population to match the count parameter
+            for (int i = 0; i < parents.GetLength(0); i++)
+            {
+                nextGen[i] = new double[parents[0].GetLength(0)];
+                nextGen[i] = newPop[i].Item2;
+            }
+           
+            //get best fitness anda best individue
+            fitness = newPop[0].Item1;
+            bestIndividue = newPop[0].Item2;
+
+            return nextGen;
+        }
+
+        /// <summary>
+        /// Creates the next generation of the population based on a best chance of getting the individue in a roulette wheel
+        /// </summary>
+        /// <param name="parents">Parent's matrix</param>
+        /// <param name="offspring">Offspring's matrix</param>
+        /// <param name="ff">Type of fitness function</param>
+        /// <returns>Mixed population with the best fitting individues between parents and offspring</returns>
+        public static double[][] GenerateNewPopulationRouletteWheel(double[][] parents, double[][] offspring, FitnessFunction ff)
+        {
+            List<Tuple<double, double[]>> newPop = new List<Tuple<double, double[]>>();
+            List<Tuple<double, double[]>> nextPop = new List<Tuple<double, double[]>>();
+
+            double[][] nextGen = new double[parents.GetLength(0)][];
+            double sumFitness = 0.0;
+
+            //organizing new population
+            if (ff == FitnessFunction.Rastrigin)
+            {
+                //adding parents and offspring to one list
+                for (int i = 0; i < parents.GetLength(0); i++)
+                {
+                    double f = Functions.Rastrigin(parents[i]);
+                    sumFitness += f;
+                    newPop.Add(new Tuple<double, double[]>(f, parents[i]));
+                }
+                for (int i = 0; i < offspring.GetLength(0); i++)
+                {
+                    double f = Functions.Rastrigin(parents[i]);
+                    sumFitness += f;
+                    newPop.Add(new Tuple<double, double[]>(f, offspring[i]));
+                }
+            }
+
+            double rNumber = GenerateRandomNumber(rnd, 0, sumFitness);
+            double localSum = 0.0;
+
+            int it = 0;
+            while (it < 200)
+            {
+                for (int i = 0; i < newPop.Count; i++)
+                {
+                    localSum += newPop[i].Item1;
+                    if (localSum >= rNumber)
+                    {
+                        //nextPop.Add(newPop[i]);
+                        nextGen[it] = newPop[i].Item2;
+                        newPop.RemoveAt(i);
+                        break;
+                    }
+                }
+
+                it++;
+            }
+            
             return nextGen;
         }
 
@@ -161,7 +249,7 @@ namespace GeneticAlgorithm
         /// The selection types to choose the individues how pass to the next generation
         /// </summary>
         public enum SelectionType{
-            BestOf, Null
+            BestOf = 1, RouletteWheel = 2, Null = 3
         }
 
         /// <summary>
@@ -169,7 +257,7 @@ namespace GeneticAlgorithm
         /// </summary>
         public enum FitnessFunction
         {
-            Rastrigin, Sphere, Custom
+            Rastrigin = 1, Sphere = 2, Custom = 3
         }
 
         #endregion
