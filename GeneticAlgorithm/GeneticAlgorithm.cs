@@ -45,6 +45,7 @@ namespace GeneticAlgorithm
                 {
                     case SelectionType.BestOf: nxt = GenerateNewPopulationBestOf(pop, off, ff); break;
                     case SelectionType.RouletteWheel: nxt = GenerateNewPopulationRouletteWheel(pop, off, ff); break;
+                    case SelectionType.Custom: nxt = GenerateNewPopulationCustom(pop, off, ff); break;
                     default: nxt = GenerateNewPopulationBestOf(pop, off, ff); break;
                 }
 
@@ -241,6 +242,19 @@ namespace GeneticAlgorithm
             return nextGen;
         }
 
+        /// <summary>
+        /// Creates the next generation of the population based on a Custom method
+        /// </summary>
+        /// <param name="parents">Parent's matrix</param>
+        /// <param name="offspring">Offspring's matrix</param>
+        /// <param name="ff">Type of fitness function</param>
+        /// <returns>Mixed population with the best fitting individues between parents and offspring</returns>
+        public static double[][] GenerateNewPopulationCustom(double[][] parents, double[][] offspring, FitnessFunction ff)
+        {
+            /* ADD YOUR CUSTOM CODE HERE */
+            return null;
+        }
+
         #endregion
 
         #region Enums
@@ -249,7 +263,7 @@ namespace GeneticAlgorithm
         /// The selection types to choose the individues how pass to the next generation
         /// </summary>
         public enum SelectionType{
-            BestOf = 1, RouletteWheel = 2, Null = 3
+            BestOf = 1, RouletteWheel = 2, Custom = 3
         }
 
         /// <summary>
@@ -257,7 +271,7 @@ namespace GeneticAlgorithm
         /// </summary>
         public enum FitnessFunction
         {
-            Rastrigin = 1, Sphere = 2, Custom = 3
+            Rastrigin = 1, Custom = 2
         }
 
         #endregion
