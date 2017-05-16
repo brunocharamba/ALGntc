@@ -15,8 +15,6 @@ namespace GeneticAlgorithm
             {
                 case FitnessFunction.Rastrigin:
                     return Rastrigin(values);
-                case FitnessFunction.Sphere:
-                    return 0.0;
                 case FitnessFunction.Custom:
                     return Custom(values);
                 default:
